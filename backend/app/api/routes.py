@@ -4,6 +4,7 @@ Simplified flow: Excel data goes directly to Thesys C1 for analysis and UI gener
 """
 
 import uuid
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse, Response
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 from ..config import settings
-from ..services import DocumentService, PDFService, WordService
+from ..services import DocumentService, PDFService, WordService, ContentExtractor
 from ..prompts import THESYS_SYSTEM_PROMPT
 
 
@@ -47,9 +48,39 @@ def get_session(session_id: str) -> dict:
         sessions[session_id] = {
             "document_service": DocumentService(),
             "data_loaded": False,
+            "conversation_history": [],  # Store full conversation
             "last_response": None,
         }
     return sessions[session_id]
+
+
+def format_conversation_for_export(session: dict) -> str:
+    """Format the full conversation history for export.
+
+    Uses ContentExtractor to convert Thesys JSON/UI responses to readable text
+    while preserving data patterns for chart generation.
+    """
+    if not session.get("conversation_history"):
+        # Try to extract readable content from last_response
+        last_response = session.get("last_response", "")
+        if last_response:
+            extractor = ContentExtractor()
+            return extractor.extract_readable_content(last_response)
+        return ""
+
+    extractor = ContentExtractor()
+    formatted_parts = []
+
+    for entry in session["conversation_history"]:
+        if entry["role"] == "user":
+            formatted_parts.append(f"## Question\n{entry['content']}\n")
+        else:
+            # Extract readable content from assistant responses
+            content = entry["content"]
+            readable_content = extractor.extract_readable_content(content)
+            formatted_parts.append(f"## Analysis\n{readable_content}\n")
+
+    return "\n---\n\n".join(formatted_parts) if formatted_parts else ""
 
 
 @router.post("/session/create", response_model=SessionResponse)
@@ -93,6 +124,8 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=result["message"])
 
     session["data_loaded"] = True
+    # Clear conversation history when new document is uploaded
+    session["conversation_history"] = []
 
     return {
         "success": True,
@@ -112,6 +145,15 @@ async def chat(request: ChatRequest):
     """
     session_id = request.session_id or str(uuid.uuid4())
     session = get_session(session_id)
+
+    # Store user question in history
+    session["conversation_history"].append(
+        {
+            "role": "user",
+            "content": request.prompt,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
 
     # Get document context
     document_context = ""
@@ -145,11 +187,20 @@ async def chat(request: ChatRequest):
                     full_response += content
                     yield content
 
-            # Store the response for export
+            # Store the response in conversation history
+            session["conversation_history"].append(
+                {
+                    "role": "assistant",
+                    "content": full_response,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
+            # Also store as last_response for backwards compatibility
             session["last_response"] = full_response
 
         except Exception as e:
-            yield f"Error: {str(e)}"
+            error_msg = f"Error: {str(e)}"
+            yield error_msg
 
     return StreamingResponse(
         generate(),
@@ -175,6 +226,7 @@ async def get_session_stats(session_id: str):
         "data_loaded": True,
         "filename": doc_service.filename,
         "content_length": len(doc_service.content) if doc_service.content else 0,
+        "conversation_count": len(session.get("conversation_history", [])),
     }
 
 
@@ -188,9 +240,18 @@ async def export_pdf(session_id: str, analysis_text: Optional[str] = None):
             status_code=400, detail="No data loaded. Please upload a document first."
         )
 
-    # Use the last response if no text provided
+    # Use full conversation history if no specific text provided
     if not analysis_text:
-        analysis_text = session.get("last_response", "")
+        analysis_text = format_conversation_for_export(session)
+
+    # Fallback to last response if conversation history is empty
+    if not analysis_text:
+        last_response = session.get("last_response", "")
+        if last_response:
+            extractor = ContentExtractor()
+            analysis_text = extractor.extract_readable_content(last_response)
+        if not analysis_text:
+            analysis_text = "No analysis available."
 
     pdf_service = PDFService()
     pdf_bytes = pdf_service.generate_report(
@@ -214,9 +275,18 @@ async def export_docx(session_id: str, analysis_text: Optional[str] = None):
             status_code=400, detail="No data loaded. Please upload a document first."
         )
 
-    # Use the last response if no text provided
+    # Use full conversation history if no specific text provided
     if not analysis_text:
-        analysis_text = session.get("last_response", "")
+        analysis_text = format_conversation_for_export(session)
+
+    # Fallback to last response if conversation history is empty
+    if not analysis_text:
+        last_response = session.get("last_response", "")
+        if last_response:
+            extractor = ContentExtractor()
+            analysis_text = extractor.extract_readable_content(last_response)
+        if not analysis_text:
+            analysis_text = "No analysis available."
 
     word_service = WordService()
     docx_bytes = word_service.generate_report(
