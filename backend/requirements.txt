@@ -4,12 +4,6 @@ uvicorn==0.38.0
 python-multipart==0.0.20
 python-dotenv==1.1.1
 
-# LangChain and LangGraph
-langchain==0.3.27
-langchain-openai==0.3.28
-langchain-community==0.3.27
-langgraph==0.6.6
-
 # Document processing
 unstructured==0.18.15
 pandas==2.3.3
@@ -33,9 +27,11 @@ aiofiles==25.1.0
 pydantic==2.12.3
 pydantic-settings==2.11.0
 
-# OpenAI
+# OpenAI (for Thesys API)
 openai==1.109.1
 
 # Other dependencies
 networkx
 msoffcrypto-tool
+black
+ruff

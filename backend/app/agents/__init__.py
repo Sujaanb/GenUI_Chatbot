@@ -1,15 +1,9 @@
 """
-Agents module for the AI Assistant.
-"""
-from .chat_agent import ChatAgent, SessionManager, session_manager
-from .state import AgentState
-from .tools import AGENT_TOOLS, set_document_service
+Agents module - Simplified for direct Thesys integration.
 
-__all__ = [
-    'ChatAgent',
-    'SessionManager', 
-    'session_manager',
-    'AgentState',
-    'AGENT_TOOLS',
-    'set_document_service'
-]
+The LangGraph agent has been removed. Session and document management
+is now handled directly in the routes module.
+"""
+
+# This module is kept for potential future extensions
+# All functionality is now in routes.py

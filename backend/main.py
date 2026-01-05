@@ -2,6 +2,7 @@
 AI Assistant - FastAPI Application
 A Generative UI chatbot for document analysis using Thesys C1 and LangGraph.
 """
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,9 +23,9 @@ async def lifespan(app: FastAPI):
     except ValueError as e:
         print(f"⚠️  Configuration warning: {e}")
         print("   Please update your .env file with valid API keys")
-    
+
     yield
-    
+
     # Shutdown
     print("👋 Shutting down AI Assistant...")
 
@@ -47,7 +48,7 @@ app = FastAPI(
     - OpenAI for natural language processing
     """,
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -57,7 +58,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Session-ID"]
+    expose_headers=["X-Session-ID"],
 )
 
 # Include API routes
@@ -72,14 +73,11 @@ async def root():
         "version": "1.0.0",
         "description": "A Generative UI chatbot for document analysis",
         "documentation": "/docs",
-        "health": "/api/health"
+        "health": "/api/health",
     }
 
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug
+        "main:app", host=settings.host, port=settings.port, reload=settings.debug
     )
