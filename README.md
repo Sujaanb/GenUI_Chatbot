@@ -15,7 +15,7 @@ A Generative UI chatbot for document analysis, built with **Thesys C1**, **LangG
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   React Frontend │────▶│  FastAPI Backend │────▶│   Thesys C1 API  │
-│   (Thesys SDK)   │◀────│   (LangGraph)    │◀────│   (OpenAI)       │
+│   (Thesys SDK)   │◀────│   (LangGraph)    │◀────│                  │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
@@ -24,7 +24,6 @@ A Generative UI chatbot for document analysis, built with **Thesys C1**, **LangG
 - Python 3.11+
 - Node.js 22+
 - Thesys API Key ([Get one here](https://console.thesys.dev/keys))
-- OpenAI API Key
 
 ## Quick Start
 
@@ -77,8 +76,6 @@ Frontend runs at `http://localhost:3000`
 
 ```env
 THESYS_API_KEY=your_thesys_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-LLM_MODEL=gpt-4o-mini
 THESYS_MODEL=c1/openai/gpt-5/v-20251130
 HOST=0.0.0.0
 PORT=8000
@@ -110,7 +107,7 @@ VITE_APP_TITLE=AI Assistant
 - **FastAPI**: High-performance Python web framework
 - **LangGraph**: Agent orchestration framework
 - **LangChain**: LLM integration and document loaders
-- **OpenAI**: Language model provider
+- **Thesys C1**: Generative UI and AI provider
 - **ReportLab**: PDF generation
 
 ### Frontend

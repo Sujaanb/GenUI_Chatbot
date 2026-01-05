@@ -18,10 +18,8 @@ class Settings(BaseSettings):
 
     # API Keys
     thesys_api_key: str = Field(default="", env="THESYS_API_KEY")
-    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
 
     # Model Configuration
-    llm_model: str = Field(default="gpt-4o-mini", env="LLM_MODEL")
     thesys_model: str = Field(default="c1/openai/gpt-5/v-20251130", env="THESYS_MODEL")
 
     # Server Configuration
@@ -55,6 +53,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignore extra env variables like OPENAI_API_KEY
 
 
 # Global settings instance
@@ -70,12 +69,6 @@ def validate_settings() -> None:
         or settings.thesys_api_key == "your_thesys_api_key_here"
     ):
         errors.append("THESYS_API_KEY is not configured")
-
-    if (
-        not settings.openai_api_key
-        or settings.openai_api_key == "your_openai_api_key_here"
-    ):
-        errors.append("OPENAI_API_KEY is not configured")
 
     if errors:
         raise ValueError(f"Configuration errors: {', '.join(errors)}")

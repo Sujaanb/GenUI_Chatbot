@@ -18,7 +18,7 @@ from ..prompts import THESYS_SYSTEM_PROMPT
 
 router = APIRouter()
 
-# Initialize OpenAI client for Thesys
+# Initialize Thesys client (uses OpenAI SDK as base client)
 thesys_client = OpenAI(
     api_key=settings.thesys_api_key, base_url=settings.thesys_base_url
 )
