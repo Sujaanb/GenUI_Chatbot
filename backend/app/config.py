@@ -1,6 +1,7 @@
 """
 Configuration management for the AI Assistant application.
 Loads environment variables and provides typed configuration access.
+Updated for Crayon migration - removed Thesys dependencies.
 """
 
 from pathlib import Path
@@ -17,12 +18,10 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # API Keys
-    thesys_api_key: str = Field(default="", env="THESYS_API_KEY")
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
 
     # Model Configuration
     llm_model: str = Field(default="gpt-4o-mini", env="LLM_MODEL")
-    thesys_model: str = Field(default="c1/openai/gpt-5/v-20251130", env="THESYS_MODEL")
 
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
@@ -31,16 +30,16 @@ class Settings(BaseSettings):
 
     # CORS Configuration
     cors_origins: str = Field(
-        default="http://localhost:3000,http://127.0.0.1:3000", env="CORS_ORIGINS"
+        default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+        env="CORS_ORIGINS",
     )
 
     # Session Configuration
     session_timeout_minutes: int = Field(default=60, env="SESSION_TIMEOUT_MINUTES")
     max_upload_size_mb: int = Field(default=10, env="MAX_UPLOAD_SIZE_MB")
 
-    # Thesys API Configuration
-    thesys_base_url: str = "https://api.thesys.dev/v1/embed"
-    thesys_pdf_export_url: str = "https://api.thesys.dev/v1/artifact/pdf/export"
+    # OpenAI API Configuration
+    openai_base_url: str = Field(default="https://api.openai.com/v1", env="OPENAI_BASE_URL")
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -55,6 +54,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignore extra env vars like THESYS_API_KEY
 
 
 # Global settings instance
@@ -64,12 +64,6 @@ settings = Settings()
 def validate_settings() -> None:
     """Validate that required settings are configured."""
     errors = []
-
-    if (
-        not settings.thesys_api_key
-        or settings.thesys_api_key == "your_thesys_api_key_here"
-    ):
-        errors.append("THESYS_API_KEY is not configured")
 
     if (
         not settings.openai_api_key

@@ -1,6 +1,6 @@
 """
 API routes for the AI Assistant.
-Simplified flow: Excel data goes directly to Thesys C1 for analysis and UI generation.
+Updated for Crayon migration - uses direct OpenAI API for JSON-structured responses.
 """
 
 import uuid
@@ -11,16 +11,20 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 from ..config import settings
-from ..services import DocumentService, PDFService, WordService
-from ..prompts import THESYS_SYSTEM_PROMPT
+from ..services import DocumentService, PDFService, WordService, OutputStorageService
+from ..prompts import GENUI_SYSTEM_PROMPT, NO_DATA_PROMPT
 
 
 router = APIRouter()
 
-# Initialize OpenAI client for Thesys
-thesys_client = OpenAI(
-    api_key=settings.thesys_api_key, base_url=settings.thesys_base_url
+# Initialize OpenAI client
+openai_client = OpenAI(
+    api_key=settings.openai_api_key,
+    base_url=settings.openai_base_url
 )
+
+# Initialize storage service for LLM outputs
+storage_service = OutputStorageService()
 
 
 class ChatRequest(BaseModel):
@@ -105,10 +109,9 @@ async def upload_document(
 @router.post("/chat")
 async def chat(request: ChatRequest):
     """
-    Chat endpoint that sends data directly to Thesys C1 for analysis and UI generation.
-
-    Simplified flow: Excel data → Thesys → UI
-    No intermediate OpenAI/LangGraph processing.
+    Chat endpoint that sends data to OpenAI and returns JSON-structured UI responses.
+    
+    Flow: Excel data → OpenAI → JSON component specification → Frontend renders
     """
     session_id = request.session_id or str(uuid.uuid4())
     session = get_session(session_id)
@@ -119,24 +122,26 @@ async def chat(request: ChatRequest):
         document_context = session["document_service"].get_data_as_text()
 
     # Build the system prompt with document data
-    system_content = THESYS_SYSTEM_PROMPT
     if document_context:
-        system_content += f"\n\n## Document Data:\n{document_context}"
+        system_content = GENUI_SYSTEM_PROMPT + f"\n\n## Document Data:\n{document_context}"
     else:
-        system_content += "\n\n## Note: No document has been uploaded yet. Ask the user to upload an Excel file."
+        system_content = NO_DATA_PROMPT
 
-    # Build messages for Thesys - send user prompt directly with data context
+    # Build messages for OpenAI
     messages = [
         {"role": "system", "content": system_content},
         {"role": "user", "content": request.prompt},
     ]
 
-    # Stream response from Thesys
+    # Stream response from OpenAI
     async def generate():
         full_response = ""
         try:
-            response = thesys_client.chat.completions.create(
-                model=settings.thesys_model, messages=messages, stream=True
+            response = openai_client.chat.completions.create(
+                model=settings.llm_model,
+                messages=messages,
+                stream=True,
+                response_format={"type": "json_object"}  # Force JSON output
             )
 
             for chunk in response:
@@ -147,9 +152,27 @@ async def chat(request: ChatRequest):
 
             # Store the response for export
             session["last_response"] = full_response
+            
+            # Save LLM output to storage
+            try:
+                storage_service.save_output(
+                    session_id=session_id,
+                    user_prompt=request.prompt,
+                    llm_response=full_response,
+                    metadata={
+                        "model": settings.llm_model,
+                        "data_loaded": session["data_loaded"],
+                        "filename": session["document_service"].filename if session["data_loaded"] else None,
+                    }
+                )
+            except Exception as storage_error:
+                # Log but don't fail the request if storage fails
+                print(f"Warning: Failed to save output to storage: {storage_error}")
 
         except Exception as e:
-            yield f"Error: {str(e)}"
+            # Return error as JSON block
+            error_json = '{"blocks": [{"type": "markdown", "content": "Error: ' + str(e).replace('"', '\\"') + '"}]}'
+            yield error_json
 
     return StreamingResponse(
         generate(),
@@ -243,4 +266,4 @@ async def delete_session(session_id: str):
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "version": "2.0.0"}
+    return {"status": "healthy", "version": "3.0.0-crayon"}
