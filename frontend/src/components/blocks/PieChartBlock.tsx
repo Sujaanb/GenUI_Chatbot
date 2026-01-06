@@ -1,6 +1,7 @@
 /**
  * Pie Chart Block Component
  * Displays pie/donut chart using Recharts.
+ * Supports click-to-drill-down functionality.
  */
 
 import React from 'react';
@@ -28,9 +29,10 @@ const DEFAULT_COLORS = [
 
 interface PieChartBlockProps {
     block: PieChartBlockType;
+    onDrillDown?: (query: string) => void;
 }
 
-export const PieChartBlock: React.FC<PieChartBlockProps> = ({ block }) => {
+export const PieChartBlock: React.FC<PieChartBlockProps> = ({ block, onDrillDown }) => {
     const { data } = block;
 
     // Transform data for Recharts format
@@ -42,6 +44,14 @@ export const PieChartBlock: React.FC<PieChartBlockProps> = ({ block }) => {
 
     // Calculate total for percentage
     const total = chartData.reduce((sum, item) => sum + item.value, 0);
+
+    // Handle segment click for drill-down
+    const handleSegmentClick = (segmentData: { name: string; value: number }) => {
+        if (onDrillDown && segmentData?.name) {
+            const query = `Show me ONLY the details about "${segmentData.name}". Do not include information about other categories.`;
+            onDrillDown(query);
+        }
+    };
 
     // Custom label renderer
     const renderLabel = ({
@@ -85,7 +95,10 @@ export const PieChartBlock: React.FC<PieChartBlockProps> = ({ block }) => {
             {data.title && (
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">{data.title}</h3>
             )}
-            <div className="h-64">
+            {onDrillDown && (
+                <p className="text-xs text-gray-400 mb-2">💡 Click on a segment to explore</p>
+            )}
+            <div className="h-[480px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
@@ -94,13 +107,19 @@ export const PieChartBlock: React.FC<PieChartBlockProps> = ({ block }) => {
                             cy="50%"
                             labelLine={false}
                             label={renderLabel}
-                            outerRadius={80}
-                            innerRadius={40}
+                            outerRadius={180}
+                            innerRadius={90}
                             paddingAngle={2}
                             dataKey="value"
+                            onClick={(_, index) => handleSegmentClick(chartData[index])}
+                            className={onDrillDown ? 'cursor-pointer' : ''}
                         >
                             {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.color}
+                                    className={onDrillDown ? 'hover:opacity-80 transition-opacity' : ''}
+                                />
                             ))}
                         </Pie>
                         <Tooltip

@@ -1,6 +1,7 @@
 /**
  * Line Chart Block Component
  * Displays line chart using Recharts.
+ * Supports click-to-drill-down functionality.
  */
 
 import React from 'react';
@@ -28,9 +29,10 @@ const DEFAULT_COLORS = [
 
 interface LineChartBlockProps {
     block: LineChartBlockType;
+    onDrillDown?: (query: string) => void;
 }
 
-export const LineChartBlock: React.FC<LineChartBlockProps> = ({ block }) => {
+export const LineChartBlock: React.FC<LineChartBlockProps> = ({ block, onDrillDown }) => {
     const { data } = block;
 
     // Transform data for Recharts format
@@ -43,14 +45,32 @@ export const LineChartBlock: React.FC<LineChartBlockProps> = ({ block }) => {
         return dataPoint;
     });
 
+    // Handle chart click for drill-down
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleChartClick = (chartEvent: any) => {
+        if (onDrillDown && chartEvent?.activePayload?.[0]?.payload?.name) {
+            const pointName = chartEvent.activePayload[0].payload.name;
+            const query = `Show me ONLY the details for "${pointName}". Do not include information about other time periods.`;
+            onDrillDown(query);
+        }
+    };
+
     return (
         <div className="line-chart-block bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
             {data.title && (
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">{data.title}</h3>
             )}
-            <div className="h-64">
+            {onDrillDown && (
+                <p className="text-xs text-gray-400 mb-2">💡 Click on a data point to explore</p>
+            )}
+            <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <LineChart
+                        data={chartData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        onClick={onDrillDown ? handleChartClick : undefined}
+                        style={{ cursor: onDrillDown ? 'pointer' : 'default' }}
+                    >
                         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                         <XAxis
                             dataKey="name"
@@ -77,8 +97,17 @@ export const LineChartBlock: React.FC<LineChartBlockProps> = ({ block }) => {
                                 dataKey={dataset.name || `Series ${index + 1}`}
                                 stroke={dataset.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
                                 strokeWidth={2}
-                                dot={{ fill: dataset.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length], strokeWidth: 2 }}
-                                activeDot={{ r: 6 }}
+                                dot={{
+                                    fill: dataset.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+                                    strokeWidth: 2,
+                                    r: 4,
+                                }}
+                                activeDot={{
+                                    r: 8,
+                                    stroke: dataset.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+                                    strokeWidth: 2,
+                                    fill: 'white',
+                                }}
                             />
                         ))}
                     </LineChart>
@@ -89,3 +118,4 @@ export const LineChartBlock: React.FC<LineChartBlockProps> = ({ block }) => {
 };
 
 export default LineChartBlock;
+

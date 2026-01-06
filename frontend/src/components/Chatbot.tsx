@@ -15,9 +15,10 @@ import type { ChatMessage, UploadedFile, UploadResponse } from '../types';
 interface MessageProps {
     message: ChatMessage;
     isStreaming: boolean;
+    onDrillDown?: (query: string) => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, isStreaming }) => {
+const Message: React.FC<MessageProps> = ({ message, isStreaming, onDrillDown }) => {
     if (message.role === 'user') {
         return (
             <div className="flex justify-end mb-4">
@@ -34,6 +35,7 @@ const Message: React.FC<MessageProps> = ({ message, isStreaming }) => {
                 <StreamingRenderer
                     response={message.content}
                     isStreaming={isStreaming && message.isLatest === true}
+                    onDrillDown={onDrillDown}
                 />
             </div>
         </div>
@@ -236,6 +238,12 @@ export const Chatbot: React.FC<ChatbotProps> = ({
         inputRef.current?.focus();
     };
 
+    // Handle drill-down from chart clicks - pre-fill the input
+    const handleDrillDown = (query: string) => {
+        setInputValue(query);
+        inputRef.current?.focus();
+    };
+
     // File upload handler
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -377,6 +385,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                                 key={index}
                                 message={message}
                                 isStreaming={isLoading}
+                                onDrillDown={handleDrillDown}
                             />
                         ))}
                         {isLoading && messages[messages.length - 1]?.content === '' && (

@@ -1,6 +1,7 @@
 /**
  * Data Table Block Component
  * Displays tabular data with styling.
+ * Supports click-to-drill-down functionality on rows.
  */
 
 import React from 'react';
@@ -8,16 +9,29 @@ import type { TableBlock as TableBlockType } from '../../types';
 
 interface DataTableBlockProps {
     block: TableBlockType;
+    onDrillDown?: (query: string) => void;
 }
 
-export const DataTableBlock: React.FC<DataTableBlockProps> = ({ block }) => {
+export const DataTableBlock: React.FC<DataTableBlockProps> = ({ block, onDrillDown }) => {
     const { data } = block;
+
+    // Handle row click for drill-down
+    const handleRowClick = (row: (string | number)[]) => {
+        if (onDrillDown && row.length > 0) {
+            const firstCol = row[0];
+            const query = `Show me ONLY the details about "${firstCol}". Do not include information about other items.`;
+            onDrillDown(query);
+        }
+    };
 
     return (
         <div className="table-block bg-white rounded-xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
             {data.title && (
-                <div className="px-4 py-3 border-b border-gray-100">
+                <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-800">{data.title}</h3>
+                    {onDrillDown && (
+                        <span className="text-xs text-gray-400">💡 Click a row to explore</span>
+                    )}
                 </div>
             )}
             <div className="overflow-x-auto">
@@ -38,7 +52,11 @@ export const DataTableBlock: React.FC<DataTableBlockProps> = ({ block }) => {
                         {data.rows.map((row, rowIndex) => (
                             <tr
                                 key={rowIndex}
-                                className="hover:bg-gray-50 transition-colors"
+                                className={`transition-colors ${onDrillDown
+                                    ? 'hover:bg-blue-50 cursor-pointer'
+                                    : 'hover:bg-gray-50'
+                                    }`}
+                                onClick={() => onDrillDown && handleRowClick(row)}
                             >
                                 {row.map((cell, cellIndex) => (
                                     <td

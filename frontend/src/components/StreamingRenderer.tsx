@@ -1,11 +1,18 @@
 /**
  * Streaming Renderer Component
  * Parses streaming JSON response and renders UI blocks progressively.
+ * Supports drill-down functionality for interactive exploration.
  */
 
 import React, { useMemo } from 'react';
 import { parseStreamingResponse } from '../services/responseParser';
-import { componentRegistry } from './blocks';
+import { MarkdownBlock } from './blocks/MarkdownBlock';
+import { KPIBlockComponent, KPIGroupBlockComponent } from './blocks/KPICard';
+import { BarChartBlock } from './blocks/BarChartBlock';
+import { LineChartBlock } from './blocks/LineChartBlock';
+import { PieChartBlock } from './blocks/PieChartBlock';
+import { DataTableBlock } from './blocks/DataTableBlock';
+import { ListBlock } from './blocks/ListBlock';
 import type { UIBlock } from '../types';
 
 interface StreamingRendererProps {
@@ -13,11 +20,14 @@ interface StreamingRendererProps {
     response: string;
     /** Whether the response is still streaming */
     isStreaming: boolean;
+    /** Callback when user clicks on chart element for drill-down */
+    onDrillDown?: (query: string) => void;
 }
 
 export const StreamingRenderer: React.FC<StreamingRendererProps> = ({
     response,
     isStreaming,
+    onDrillDown,
 }) => {
     // Parse the response to extract blocks
     const { blocks, error } = useMemo(() => {
@@ -59,7 +69,11 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = ({
     return (
         <div className="streaming-renderer space-y-4">
             {blocks.map((block, index) => (
-                <BlockRenderer key={`${block.type}-${index}`} block={block} />
+                <BlockRenderer
+                    key={`${block.type}-${index}`}
+                    block={block}
+                    onDrillDown={onDrillDown}
+                />
             ))}
 
             {/* Show streaming indicator at the end */}
@@ -78,28 +92,42 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = ({
 };
 
 /**
- * Renders a single block using the component registry.
+ * Renders a single block using the appropriate component.
  */
 interface BlockRendererProps {
     block: UIBlock;
+    onDrillDown?: (query: string) => void;
 }
 
-const BlockRenderer: React.FC<BlockRendererProps> = ({ block }) => {
-    const Component = componentRegistry[block.type];
-
-    if (!Component) {
-        // Unknown block type - show as JSON for debugging
-        return (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800">
-                <p className="font-medium text-sm">Unknown block type: {block.type}</p>
-                <pre className="text-xs mt-2 overflow-x-auto">
-                    {JSON.stringify(block, null, 2)}
-                </pre>
-            </div>
-        );
+const BlockRenderer: React.FC<BlockRendererProps> = ({ block, onDrillDown }) => {
+    switch (block.type) {
+        case 'markdown':
+            return <MarkdownBlock block={block} />;
+        case 'kpi':
+            return <KPIBlockComponent block={block} />;
+        case 'kpiGroup':
+            return <KPIGroupBlockComponent block={block} />;
+        case 'barChart':
+            return <BarChartBlock block={block} onDrillDown={onDrillDown} />;
+        case 'lineChart':
+            return <LineChartBlock block={block} onDrillDown={onDrillDown} />;
+        case 'pieChart':
+            return <PieChartBlock block={block} onDrillDown={onDrillDown} />;
+        case 'table':
+            return <DataTableBlock block={block} onDrillDown={onDrillDown} />;
+        case 'list':
+            return <ListBlock block={block} />;
+        default:
+            // Unknown block type - show as JSON for debugging
+            return (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800">
+                    <p className="font-medium text-sm">Unknown block type: {(block as UIBlock).type}</p>
+                    <pre className="text-xs mt-2 overflow-x-auto">
+                        {JSON.stringify(block, null, 2)}
+                    </pre>
+                </div>
+            );
     }
-
-    return <Component block={block} />;
 };
 
 export default StreamingRenderer;
