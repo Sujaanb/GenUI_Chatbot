@@ -2,6 +2,6 @@
 API module for the JIRA Issue Analyzer.
 """
 
-from .routes import router
+from .chat import chat_endpoint
 
-__all__ = ["router"]
+__all__ = ["chat_endpoint"]

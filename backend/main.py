@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import settings, validate_settings
-from app.api import router
+from app.api import chat_endpoint
 
 
 @asynccontextmanager
@@ -61,8 +61,9 @@ app.add_middleware(
     expose_headers=["X-Session-ID"],
 )
 
-# Include API routes
-app.include_router(router, prefix="/api")
+
+# Chat endpoint
+app.websocket("/chat")(chat_endpoint)
 
 
 @app.get("/")

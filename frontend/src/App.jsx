@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Chatbot from './components/Chatbot';
-import { createSession } from './services/api';
+import { createSession, initializeConnection, disconnect, setConnectionChangeCallback } from './services/api';
 
 /**
  * Main App component - Goes directly to chat interface
@@ -10,9 +10,58 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Use a ref to track initialization and prevent double calls in StrictMode
+  // Use refs to track state for callbacks
   const isInitialized = useRef(false);
+  const sessionIdRef = useRef(null);
+  const isCreatingSession = useRef(false);
+
+  // Keep sessionIdRef in sync
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Function to create a new session (can be called from callback)
+  const createNewSession = useCallback(async () => {
+    // Prevent concurrent session creation
+    if (isCreatingSession.current) return;
+    isCreatingSession.current = true;
+
+    try {
+      setIsInitializing(true);
+      setError(null);
+      const result = await createSession();
+      setSessionId(result.session_id);
+      setIsConnected(true);
+      setError(null);
+      console.log('Session created:', result.session_id);
+    } catch (err) {
+      console.error('Failed to create session:', err);
+      setError('Failed to create session. Please try again.');
+    } finally {
+      setIsInitializing(false);
+      isCreatingSession.current = false;
+    }
+  }, []);
+
+  // Function to initialize connection and create session
+  const initializeApp = useCallback(async () => {
+    setIsInitializing(true);
+    setError(null);
+
+    try {
+      // Initialize connection
+      await initializeConnection();
+      // Create session
+      await createNewSession();
+    } catch (err) {
+      console.error('Initialization error:', err);
+      setIsConnected(false);
+      setError('Cannot connect to backend. Please ensure the server is running.');
+      setIsInitializing(false);
+    }
+  }, [createNewSession]);
 
   // Create session on mount (only once)
   useEffect(() => {
@@ -20,21 +69,30 @@ export default function App() {
     if (isInitialized.current) return;
     isInitialized.current = true;
 
-    const initializeApp = async () => {
-      try {
-        // Create session - if this works, the backend is connected
-        const result = await createSession();
-        setSessionId(result.session_id);
-        setIsConnected(true);
+    // Set up connection change callback
+    setConnectionChangeCallback((connected) => {
+      setIsConnected(connected);
+      if (connected) {
+        // Clear error on successful connection
         setError(null);
-      } catch (err) {
-        setIsConnected(false);
-        setError('Cannot connect to backend. Please ensure the server is running.');
+        console.log('Connected');
+        // If we don't have a session yet, create one
+        if (!sessionIdRef.current && !isCreatingSession.current) {
+          console.log('Creating session after reconnection...');
+          createNewSession();
+        }
+      } else {
+        console.log('Disconnected, will attempt to reconnect...');
       }
-    };
+    });
 
     initializeApp();
-  }, []);
+
+    // Cleanup on unmount
+    return () => {
+      disconnect();
+    };
+  }, [initializeApp, createNewSession]);
 
   const handleNewSession = async () => {
     try {
@@ -82,10 +140,11 @@ export default function App() {
           </h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={initializeApp}
+            disabled={isInitializing}
             className="btn-primary"
           >
-            Retry
+            {isInitializing ? 'Connecting...' : 'Retry'}
           </button>
         </div>
       </div>
