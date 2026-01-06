@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { C1Component, ThemeProvider } from '@thesysai/genui-sdk';
 import { Send, Download, RefreshCw, Trash2, Paperclip, FileSpreadsheet, CheckCircle, X, FileText } from 'lucide-react';
-import { sendChatMessage, exportPDF, exportWord, downloadBlob, uploadExcel } from '../services/api';
+import { sendChatMessage, exportDocument, downloadBlob, uploadExcel } from '../services/api';
 
 /**
  * Message component for displaying chat messages
@@ -167,7 +167,7 @@ export default function Chatbot({ sessionId, onNewSession, onFileUploaded, uploa
 
     setIsExporting(true);
     try {
-      const blob = await exportPDF(sessionId);
+      const blob = await exportDocument(sessionId, 'pdf');
       downloadBlob(blob, 'analysis_report.pdf');
     } catch (error) {
       console.error('Export error:', error);
@@ -182,7 +182,7 @@ export default function Chatbot({ sessionId, onNewSession, onFileUploaded, uploa
 
     setIsExporting(true);
     try {
-      const blob = await exportWord(sessionId);
+      const blob = await exportDocument(sessionId, 'docx');
       downloadBlob(blob, 'analysis_report.docx');
     } catch (error) {
       console.error('Export error:', error);

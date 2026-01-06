@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Chatbot from './components/Chatbot';
-import { createSession, healthCheck } from './services/api';
+import { createSession } from './services/api';
 
 /**
  * Main App component - Goes directly to chat interface
@@ -11,17 +11,22 @@ export default function App() {
   const [error, setError] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
-  // Check backend health and create session on mount
+  // Use a ref to track initialization and prevent double calls in StrictMode
+  const isInitialized = useRef(false);
+
+  // Create session on mount (only once)
   useEffect(() => {
+    // Prevent double initialization in React StrictMode
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+
     const initializeApp = async () => {
       try {
-        await healthCheck();
-        setIsConnected(true);
-        setError(null);
-
-        // Create initial session
+        // Create session - if this works, the backend is connected
         const result = await createSession();
         setSessionId(result.session_id);
+        setIsConnected(true);
+        setError(null);
       } catch (err) {
         setIsConnected(false);
         setError('Cannot connect to backend. Please ensure the server is running.');
@@ -29,20 +34,6 @@ export default function App() {
     };
 
     initializeApp();
-
-    // Check health periodically
-    const interval = setInterval(async () => {
-      try {
-        await healthCheck();
-        setIsConnected(true);
-        setError(null);
-      } catch (err) {
-        setIsConnected(false);
-        setError('Cannot connect to backend. Please ensure the server is running.');
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const handleNewSession = async () => {

@@ -31,6 +31,14 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+class ExportRequest(BaseModel):
+    """Request body for export endpoint."""
+
+    session_id: str
+    format: str  # "pdf" or "docx"
+    analysis_text: Optional[str] = None
+
+
 class SessionResponse(BaseModel):
     """Response for session creation."""
 
@@ -213,27 +221,16 @@ async def chat(request: ChatRequest):
     )
 
 
-@router.get("/session/{session_id}/stats")
-async def get_session_stats(session_id: str):
-    """Get statistics for a session."""
-    session = get_session(session_id)
+@router.post("/export")
+async def export_document(request: ExportRequest):
+    """Export the current analysis as PDF or Word document."""
+    # Validate format
+    if request.format not in ["pdf", "docx"]:
+        raise HTTPException(
+            status_code=400, detail="Invalid format. Use 'pdf' or 'docx'"
+        )
 
-    if not session["data_loaded"]:
-        raise HTTPException(status_code=404, detail="No data loaded for this session")
-
-    doc_service = session["document_service"]
-    return {
-        "data_loaded": True,
-        "filename": doc_service.filename,
-        "content_length": len(doc_service.content) if doc_service.content else 0,
-        "conversation_count": len(session.get("conversation_history", [])),
-    }
-
-
-@router.post("/export-pdf")
-async def export_pdf(session_id: str, analysis_text: Optional[str] = None):
-    """Export the current analysis as a PDF report."""
-    session = get_session(session_id)
+    session = get_session(request.session_id)
 
     if not session["data_loaded"]:
         raise HTTPException(
@@ -241,6 +238,7 @@ async def export_pdf(session_id: str, analysis_text: Optional[str] = None):
         )
 
     # Use full conversation history if no specific text provided
+    analysis_text = request.analysis_text
     if not analysis_text:
         analysis_text = format_conversation_for_export(session)
 
@@ -253,64 +251,28 @@ async def export_pdf(session_id: str, analysis_text: Optional[str] = None):
         if not analysis_text:
             analysis_text = "No analysis available."
 
-    pdf_service = PDFService()
-    pdf_bytes = pdf_service.generate_report(
-        filename=session["document_service"].filename, analysis_text=analysis_text
-    )
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=analysis_report.pdf"},
-    )
-
-
-@router.post("/export-docx")
-async def export_docx(session_id: str, analysis_text: Optional[str] = None):
-    """Export the current analysis as a Word document."""
-    session = get_session(session_id)
-
-    if not session["data_loaded"]:
-        raise HTTPException(
-            status_code=400, detail="No data loaded. Please upload a document first."
+    # Generate the appropriate document format
+    if request.format == "pdf":
+        pdf_service = PDFService()
+        content_bytes = pdf_service.generate_report(
+            filename=session["document_service"].filename, analysis_text=analysis_text
         )
-
-    # Use full conversation history if no specific text provided
-    if not analysis_text:
-        analysis_text = format_conversation_for_export(session)
-
-    # Fallback to last response if conversation history is empty
-    if not analysis_text:
-        last_response = session.get("last_response", "")
-        if last_response:
-            extractor = ContentExtractor()
-            analysis_text = extractor.extract_readable_content(last_response)
-        if not analysis_text:
-            analysis_text = "No analysis available."
-
-    word_service = WordService()
-    docx_bytes = word_service.generate_report(
-        content=analysis_text,
-        filename=session["document_service"].filename,
-        include_charts=True,
-    )
-
-    return Response(
-        content=docx_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": "attachment; filename=analysis_report.docx"},
-    )
-
-
-@router.delete("/session/{session_id}")
-async def delete_session(session_id: str):
-    """Delete a session and its data."""
-    if session_id in sessions:
-        del sessions[session_id]
-    return {"message": "Session deleted successfully"}
-
-
-@router.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "version": "2.0.0"}
+        return Response(
+            content=content_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=analysis_report.pdf"},
+        )
+    else:  # docx
+        word_service = WordService()
+        content_bytes = word_service.generate_report(
+            content=analysis_text,
+            filename=session["document_service"].filename,
+            include_charts=True,
+        )
+        return Response(
+            content=content_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": "attachment; filename=analysis_report.docx"
+            },
+        )

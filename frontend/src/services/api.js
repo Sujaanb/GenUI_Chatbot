@@ -135,62 +135,29 @@ export async function getInitialAnalysis(sessionId, onChunk, onComplete, onError
   }
 }
 
-/**
- * Get session statistics
- * @param {string} sessionId - The session ID
- * @returns {Promise<Object>} Session statistics
- */
-export async function getSessionStats(sessionId) {
-  const response = await fetch(`${API_URL}/session/${sessionId}/stats`);
-
-  if (!response.ok) {
-    throw new Error('Failed to get session stats');
-  }
-
-  return response.json();
-}
 
 /**
- * Export analysis as PDF
+ * Export analysis as PDF or Word document
  * @param {string} sessionId - The session ID
+ * @param {string} format - The export format: "pdf" or "docx"
  * @param {string} analysisText - Optional analysis text to include
- * @returns {Promise<Blob>} PDF file blob
+ * @returns {Promise<Blob>} Document file blob
  */
-export async function exportPDF(sessionId, analysisText = null) {
-  let url = `${API_URL}/export-pdf?session_id=${sessionId}`;
-  if (analysisText) {
-    url += `&analysis_text=${encodeURIComponent(analysisText)}`;
-  }
-
-  const response = await fetch(url, {
+export async function exportDocument(sessionId, format, analysisText = null) {
+  const response = await fetch(`${API_URL}/export`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      format: format,
+      analysis_text: analysisText,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to export PDF');
-  }
-
-  return response.blob();
-}
-
-/**
- * Export analysis as Word document
- * @param {string} sessionId - The session ID
- * @param {string} analysisText - Optional analysis text to include
- * @returns {Promise<Blob>} Word file blob
- */
-export async function exportWord(sessionId, analysisText = null) {
-  let url = `${API_URL}/export-docx?session_id=${sessionId}`;
-  if (analysisText) {
-    url += `&analysis_text=${encodeURIComponent(analysisText)}`;
-  }
-
-  const response = await fetch(url, {
-    method: 'POST',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to export Word document');
+    throw new Error(`Failed to export ${format.toUpperCase()}`);
   }
 
   return response.blob();
@@ -212,27 +179,3 @@ export function downloadBlob(blob, filename) {
   a.remove();
 }
 
-/**
- * Delete a session
- * @param {string} sessionId - The session ID to delete
- */
-export async function deleteSession(sessionId) {
-  const response = await fetch(`${API_URL}/session/${sessionId}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to delete session');
-  }
-
-  return response.json();
-}
-
-/**
- * Health check
- * @returns {Promise<Object>} Health status
- */
-export async function healthCheck() {
-  const response = await fetch(`${API_URL}/health`);
-  return response.json();
-}
