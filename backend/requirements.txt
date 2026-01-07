@@ -35,3 +35,6 @@ networkx
 msoffcrypto-tool
 black
 ruff
+
+langchain_community
+websockets
