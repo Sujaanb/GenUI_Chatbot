@@ -11,7 +11,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from openai import OpenAI
 
 from ..config import settings
-from ..services import DocumentService, PDFService, WordService, OutputStorageService
+from ..services import DocumentService, PDFService, WordService
 from ..prompts import GENUI_SYSTEM_PROMPT, NO_DATA_PROMPT
 
 
@@ -22,9 +22,6 @@ openai_client = OpenAI(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url
 )
-
-# Initialize storage service for LLM outputs
-storage_service = OutputStorageService()
 
 # Session storage
 sessions: dict = {}
@@ -195,21 +192,6 @@ async def handle_chat(websocket: WebSocket, session_id: str, payload: dict):
             
             # Store the response for export
             session["last_response"] = full_response
-            
-            # Save LLM output to storage
-            try:
-                storage_service.save_output(
-                    session_id=session_id,
-                    user_prompt=prompt,
-                    llm_response=full_response,
-                    metadata={
-                        "model": settings.llm_model,
-                        "data_loaded": session["data_loaded"],
-                        "filename": session["document_service"].filename if session["data_loaded"] else None,
-                    }
-                )
-            except Exception as storage_error:
-                print(f"Warning: Failed to save output to storage: {storage_error}")
             
             # Send completion message
             await websocket.send_json({
