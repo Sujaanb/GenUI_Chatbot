@@ -1,13 +1,20 @@
 /**
  * Main Chatbot Component
- * TypeScript version with custom StreamingRenderer instead of Thesys C1Component.
+ * TypeScript version with WebSocket communication.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Download, RefreshCw, Trash2, Paperclip, CheckCircle, X, FileText } from 'lucide-react';
-import { sendChatMessage, exportPDF, exportWord, downloadBlob, uploadExcel } from '../services/api';
+import { Send, Download, RefreshCw, Trash2, Paperclip, CheckCircle, X, FileText, Wifi, WifiOff } from 'lucide-react';
+import {
+    wsClient,
+    sendChatMessage,
+    exportPDF,
+    exportWord,
+    downloadBlob,
+    uploadExcel
+} from '../services/websocket';
 import { StreamingRenderer } from './StreamingRenderer';
-import type { ChatMessage, UploadedFile, UploadResponse } from '../types';
+import type { ChatMessage, UploadedFile } from '../types';
 
 /**
  * Message component for displaying chat messages
@@ -66,9 +73,8 @@ const LoadingIndicator: React.FC = () => {
  * Main Chatbot component props
  */
 interface ChatbotProps {
-    sessionId: string;
     onNewSession: () => void;
-    onFileUploaded: (result: UploadResponse & { filename?: string }) => void;
+    onFileUploaded: (result: { success: boolean; filename: string; message?: string }) => void;
     uploadedFiles?: UploadedFile[];
 }
 
@@ -76,7 +82,6 @@ interface ChatbotProps {
  * Main Chatbot component
  */
 export const Chatbot: React.FC<ChatbotProps> = ({
-    sessionId,
     onNewSession,
     onFileUploaded,
     uploadedFiles = []
@@ -88,9 +93,36 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [showUploadSuccess, setShowUploadSuccess] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // WebSocket connection handlers
+    useEffect(() => {
+        const unsubConnect = wsClient.onConnect(() => {
+            setIsConnected(true);
+            setIsReconnecting(false);
+        });
+
+        const unsubDisconnect = wsClient.onDisconnect(() => {
+            setIsConnected(false);
+        });
+
+        const unsubReconnecting = wsClient.onReconnecting(() => {
+            setIsReconnecting(true);
+        });
+
+        // Check initial connection state
+        setIsConnected(wsClient.isConnected());
+
+        return () => {
+            unsubConnect();
+            unsubDisconnect();
+            unsubReconnecting();
+        };
+    }, []);
 
     // Scroll to bottom when messages change
     useEffect(() => {
@@ -111,7 +143,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     }, [showUploadSuccess]);
 
     const handleSend = async () => {
-        if (!inputValue.trim() || isLoading) return;
+        if (!inputValue.trim() || isLoading || !isConnected) return;
 
         const userMessage = inputValue.trim();
         setInputValue('');
@@ -130,9 +162,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({
         ]);
 
         try {
-            await sendChatMessage(
+            sendChatMessage(
                 userMessage,
-                sessionId,
                 // onChunk
                 (accumulatedResponse) => {
                     setMessages((prev) => {
@@ -189,11 +220,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     };
 
     const handleExportPDF = async () => {
-        if (!sessionId) return;
+        if (!isConnected) return;
 
         setIsExporting(true);
         try {
-            const blob = await exportPDF(sessionId);
+            const blob = await exportPDF();
             downloadBlob(blob, 'analysis_report.pdf');
         } catch (error) {
             console.error('Export error:', error);
@@ -204,11 +235,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     };
 
     const handleExportWord = async () => {
-        if (!sessionId) return;
+        if (!isConnected) return;
 
         setIsExporting(true);
         try {
-            const blob = await exportWord(sessionId);
+            const blob = await exportWord();
             downloadBlob(blob, 'analysis_report.docx');
         } catch (error) {
             console.error('Export error:', error);
@@ -254,17 +285,18 @@ export const Chatbot: React.FC<ChatbotProps> = ({
             return;
         }
 
+        if (!isConnected) {
+            alert('Not connected to server. Please wait for reconnection.');
+            return;
+        }
+
         setIsUploading(true);
         setUploadError(null);
 
         try {
-            const result = await uploadExcel(file, sessionId);
-            if (result.success) {
-                setShowUploadSuccess(true);
-                onFileUploaded?.({ ...result, filename: file.name });
-            } else {
-                setUploadError(result.message || 'Upload failed');
-            }
+            await uploadExcel(file);
+            setShowUploadSuccess(true);
+            onFileUploaded?.({ success: true, filename: file.name });
         } catch (error) {
             console.error('Upload error:', error);
             setUploadError(error instanceof Error ? error.message : 'Upload failed');
@@ -286,7 +318,15 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                 <div>
                     <h2 className="font-semibold text-gray-800">AI Assistant</h2>
                     <div className="flex items-center gap-2">
-                        <p className="text-xs text-gray-500">Session: {sessionId?.slice(0, 8)}...</p>
+                        <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600' : isReconnecting ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {isConnected ? (
+                                <><Wifi className="w-3 h-3" /> Connected</>
+                            ) : isReconnecting ? (
+                                <><RefreshCw className="w-3 h-3 animate-spin" /> Reconnecting...</>
+                            ) : (
+                                <><WifiOff className="w-3 h-3" /> Disconnected</>
+                            )}
+                        </span>
                         {uploadedFiles.length > 0 && (
                             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                                 {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} loaded

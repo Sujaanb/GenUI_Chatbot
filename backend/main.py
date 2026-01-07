@@ -1,6 +1,6 @@
 """
 AI Assistant - FastAPI Application
-A Generative UI chatbot for document analysis using Thesys C1 and LangGraph.
+A Generative UI chatbot for document analysis with WebSocket communication.
 """
 
 import uvicorn
@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import settings, validate_settings
-from app.api import router
+from app.api import ws_router
 
 
 @asynccontextmanager
@@ -37,17 +37,16 @@ app = FastAPI(
     A Generative UI chatbot for document analysis.
     
     ## Features
+    - WebSocket-based real-time communication
     - Upload Excel files for analysis
     - Analyze documents with interactive visualizations
     - Natural language interface for querying data
-    - Export analysis reports as PDF
+    - Export analysis reports as PDF/Word
     
-    ## Powered By
-    - Thesys C1 for Generative UI
-    - LangGraph for intelligent agents
-    - OpenAI for natural language processing
+    ## WebSocket Endpoint
+    Connect to `/ws` for all communication.
     """,
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -58,11 +57,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Session-ID"],
 )
 
-# Include API routes
-app.include_router(router, prefix="/api")
+# Include WebSocket router
+app.include_router(ws_router)
 
 
 @app.get("/")
@@ -70,10 +68,10 @@ async def root():
     """Root endpoint with API information."""
     return {
         "name": "AI Assistant API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "description": "A Generative UI chatbot for document analysis",
+        "websocket": "/ws",
         "documentation": "/docs",
-        "health": "/api/health",
     }
 
 

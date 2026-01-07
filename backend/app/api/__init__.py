@@ -1,7 +1,7 @@
 """
-API module for the JIRA Issue Analyzer.
+API module for the AI Assistant.
 """
 
-from .routes import router
+from .websocket import router as ws_router
 
-__all__ = ["router"]
+__all__ = ["ws_router"]
