@@ -7,9 +7,15 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from app.config import settings, validate_settings
 from app.api import chat_endpoint
+from app.health import get_health_status
+
+
+# Track application start time for uptime calculation
+start_time = datetime.utcnow()
 
 
 @asynccontextmanager
@@ -76,6 +82,38 @@ async def root():
         "documentation": "/docs",
         "health": "/api/health",
     }
+
+
+@app.get("/api/health")
+async def health():
+    """
+    Health check endpoint with detailed diagnostics.
+    
+    Returns:
+        HealthStatus: Application health status, dependencies, and configuration details
+    
+    Example response:
+    ```json
+    {
+        "status": "healthy",
+        "timestamp": "2024-01-15T10:30:45.123456Z",
+        "version": "1.0.0",
+        "uptime_seconds": 3600,
+        "dependencies": {
+            "thesys_api_configured": true
+        },
+        "configuration": {
+            "debug": true,
+            "host": "0.0.0.0",
+            "port": 8000,
+            "session_timeout_minutes": 60,
+            "max_upload_size_mb": 10,
+            "cors_origins_count": 2
+        }
+    }
+    ```
+    """
+    return await get_health_status(start_time)
 
 
 if __name__ == "__main__":
